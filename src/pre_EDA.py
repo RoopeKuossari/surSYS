@@ -14,14 +14,14 @@ import pickle
 
 # Get all female and male cropped image paths
 fpath = (
-    glob('./src/data/images/crop/female/**/*.jpg', recursive=True) +
-    glob('./src/data/images/crop/female/**/*.jpeg', recursive=True) +
-    glob('./src/data/images/crop/female/**/*.png', recursive=True)
+    glob('./data/images/crop/female/**/*.jpg', recursive=True) +
+    glob('./data/images/crop/female/**/*.jpeg', recursive=True) +
+    glob('./data/images/crop/female/**/*.png', recursive=True)
 )
 mpath = (
-    glob('./src/data/images/crop/male/**/*.jpg', recursive=True) +
-    glob('./src/data/images/crop/male/**/*.jpeg', recursive=True) +
-    glob('./src/data/images/crop/male/**/*.png', recursive=True)
+    glob('./data/images/crop/male/**/*.jpg', recursive=True) +
+    glob('./data/images/crop/male/**/*.jpeg', recursive=True) +
+    glob('./data/images/crop/male/**/*.png', recursive=True)
 )
 
 # Extract identity from the file path
@@ -84,6 +84,8 @@ dist_identity = df['identity'].value_counts()
 # Save the DataFrame to a pickle file
 dist_gender = df['gender'].value_counts()
 
+print(f"Total images after filtering: {len(df_filter)}")
+print(f"Total valid structured images: {len(data)}")
 # Save data
 pickle.dump(data, open('./data/data_images_100_100.pickle', mode='wb'))
 
