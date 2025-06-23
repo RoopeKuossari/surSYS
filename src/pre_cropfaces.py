@@ -27,7 +27,7 @@ for i in range(len(fupath)):
             #crop Face 
             roi = img[y:y+h,x:x+w]
             #Save Image
-            cv2.imwrite(f'./data/images/crop/female/female_{i}.jpg',roi)
+            cv2.imwrite(f'./data/images/crop/female/unknown/female_{i}.jpg',roi)
             print('Image Sucessfully processed')
     except:
         print('Unable to Process the image')
@@ -46,7 +46,7 @@ for i in range(len(mupath)):
             #crop Face
             roi = img[y:y+h,x:x+w]
             #Save Image
-            cv2.imwrite(f'./data/images/crop/male/male_{i}.jpg',roi)
+            cv2.imwrite(f'./data/images/crop/male/known/male_{i}.jpg',roi)
             print('Image Sucessfully processed')
     except:
         print('Unable to Process the image')
@@ -69,7 +69,7 @@ def crop_and_save_faces(src_root, dest_root):
                 img = cv2.imread(src_path)
                 img_rgb = cv2.cvtColor(img,cv2.COLOR_BGR2RGB) # this step will convert image from BGR to RGB
                 gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
-                faces_list = haar.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+                faces_list = haar.detectMultiScale(gray, scaleFactor=1.5, minNeighbors=5)
 
                 # Crop and save all detected faces (can be adjusted to just take the largest face, etc.)
                 for i, (x, y, w, h) in enumerate(faces_list):
@@ -86,9 +86,9 @@ def crop_and_save_faces(src_root, dest_root):
                     print(f"No face found in: {src_path}")
 
 # Example usage
-src_known = "data/images/train/female/known"
-dst_known = "data/images/crop/female/known"
+src_known = "./data/images/train/female/known"
+dst_known = "./data/images/crop/female/known"
 crop_and_save_faces(src_known, dst_known)
-src_known = "data/images/male/known"
-dst_known = "data/images/crop/male/known"
+src_known = "./data/images/train/male/known"
+dst_known = "./data/images/crop/male/known"
 crop_and_save_faces(src_known, dst_known)
