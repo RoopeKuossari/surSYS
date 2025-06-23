@@ -1,0 +1,8 @@
+Include
+Lib
+Scripts
+share
+src/data/images
+src/data/eigen_face_test.ipynb
+src/data/image_crop_test.ipynb
+pyvenv.cfg
