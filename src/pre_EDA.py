@@ -4,8 +4,9 @@ import pandas as pd
 import pickle
 
 # Get all female and male cropped image paths
-DATA_DIR = Path('./data/images/crop')
-OUTPUT_PATH = Path('./data/data_images_100_100.pickle')
+ROOT_DIR = Path(__file__).resolve().parent
+DATA_DIR = ROOT_DIR / 'data' / 'images' / 'crop'
+OUTPUT_PATH = ROOT_DIR / 'data' / 'data_images_100_100.pickle'
 
 
 def collect_paths() -> pd.DataFrame:

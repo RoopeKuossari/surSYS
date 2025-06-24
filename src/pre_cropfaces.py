@@ -2,7 +2,9 @@ from pathlib import Path
 import os
 import cv2
 
-CASCADE_PATH = './model/haarcascade_frontalface_default.xml'
+ROOT_DIR = Path(__file__).resolve().parent
+
+CASCADE_PATH = ROOT_DIR / 'model' / 'haarcascade_frontalface_default.xml'
 FACE_CASCADE = cv2.CascadeClassifier(str(CASCADE_PATH))
 
 def process_directory(src_root: Path, dest_root: Path) -> None:
@@ -25,7 +27,7 @@ def process_directory(src_root: Path, dest_root: Path) -> None:
                             face_filename = dest_path.with_name(f"{stem}_face_{idx}{ext}")
                         else:
                             face_filename = dest_path
-                            cv2.imwrite(str(face_filename), roi)
+                        cv2.imwrite(str(face_filename), roi)
                 except Exception as e:
                     print(f"Error processing {src_path}: {e}")
 
