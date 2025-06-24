@@ -1,93 +1,83 @@
-import numpy as np
-import pandas as pd
-
-# visualization
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# computer vision library
+from pathlib import Path
 import cv2
-
-# glob
-from glob import glob
+import pandas as pd
 import pickle
 
 # Get all female and male cropped image paths
-fpath = (
-    glob('./data/images/crop/female/**/*.jpg', recursive=True) +
-    glob('./data/images/crop/female/**/*.jpeg', recursive=True) +
-    glob('./data/images/crop/female/**/*.png', recursive=True)
-)
-mpath = (
-    glob('./data/images/crop/male/**/*.jpg', recursive=True) +
-    glob('./data/images/crop/male/**/*.jpeg', recursive=True) +
-    glob('./data/images/crop/male/**/*.png', recursive=True)
-)
+DATA_DIR = Path('./data/images/crop')
+OUTPUT_PATH = Path('./data/data_images_100_100.pickle')
 
-# Extract identity from the file path
-def extract_identity(path):
-    parts = path.replace("\\", "/").split('/')
+
+def collect_paths() -> pd.DataFrame:
+    # Collect paths for female images
+    female_paths = list(DATA_DIR.joinpath('female').rglob('*.jpg')) + list(
+        DATA_DIR.joinpath('female').rglob('*.jpeg')) + list(
+            DATA_DIR.joinpath('female').rglob('*.png'))
+    # Collect paths for male images
+    male_paths = list(DATA_DIR.joinpath('male').rglob('*.jpg')) + list(
+        DATA_DIR.joinpath('male').rglob('*.jpeg')) + list(
+        DATA_DIR.joinpath('male').rglob('*.png'))
+    
+    # Create DataFrames for each gender
+    df_female = pd.DataFrame(female_paths, columns=['filepath'])
+    df_female['gender'] = 'female'
+    df_female['identity'] = df_female['filepath'].apply(extract_identity)
+    df_male = pd.DataFrame(male_paths, columns=['filepath'])
+    df_male['gender'] = 'male'
+    df_male['identity'] = df_male['filepath'].apply(extract_identity)
+    return pd.concat((df_female, df_male), axis=0, ignore_index=True)
+
+def extract_identity(path: Path) -> str:
+    # Extract identity from the file path
+    # The identity is assumed to be the folder name after 'known' or 'unknown'
+    parts = str(path).replace('\\', '/').split('/')
     if 'known' in parts:
-        return parts[parts.index('known') + 1]  # e.g., "julia" or "roope"
+        return parts[parts.index('known') + 1]
     elif 'unknown' in parts:
         return 'unknown'
     return 'unknown'  # fallback
 
-# Create DataFrames for each gender
-df_female = pd.DataFrame(fpath, columns=['filepath'])
-df_female['gender'] = 'female'
-df_female['identity'] = df_female['filepath'].apply(extract_identity)
-df_male = pd.DataFrame(mpath, columns=['filepath'])
-df_male['gender'] = 'male'
-df_male['identity'] = df_male['filepath'].apply(extract_identity)
-# Combine both DataFrames
-df = pd.concat((df_female, df_male), axis=0, ignore_index=True)
-
-# Function to get the size of the image
-def get_size(path):
-    img = cv2.imread(path)
+def get_size(path: Path) -> int:
+    # Get the height of the image at the given path
+    # Returns 0 if the image cannot be read
+    img = cv2.imread(str(path))
     return img.shape[0] if img is not None else 0
 
-# Apply the function to get the size of each image
-df['dimension'] = df['filepath'].apply(get_size)
-df_filter = df.query('dimension > 60')
-
 # Function to structure the image data
-def structuring(path):
+def structuring(path: Path):
     try:
-        img = cv2.imread(path)
+        img = cv2.imread(str(path))
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         size = gray.shape[0]
         if size >= 100:
-            gray_resize = cv2.resize(gray, (100,100), cv2.INTER_AREA)
+            gray_resize = cv2.resize(gray, (100, 100), cv2.INTER_AREA)
         else:
-            gray_resize = cv2.resize(gray, (100,100), cv2.INTER_CUBIC)
+            gray_resize = cv2.resize(gray, (100, 100), cv2.INTER_CUBIC)
         return gray_resize.flatten()
-    except:
+    except Exception:
         return None
 
-# Apply the structuring function to each image path    
-df_filter['data'] = df_filter['filepath'].apply(structuring)
-# Convert the structured data into a DataFrame
-data = pd.DataFrame(df_filter['data'].tolist())
-# Rename columns and normalize pixel values
-data.columns = [f"pixel_{i}" for i in data.columns]
-# Normalize pixel values to [0, 1]
-data = data / 255.0
-# Add gender and identity columns
-data['gender'] = df_filter['gender'].values
-data['identity'] = df_filter['identity'].values
-# Drop rows with NaN values
-data.dropna(inplace=True)
-# Save the processed data to a pickle file
-dist_identity = df['identity'].value_counts()
-# Save the DataFrame to a pickle file
-dist_gender = df['gender'].value_counts()
+def main():
+    df = collect_paths() # Collect paths
+    # Filter out images that are too small
+    df['dimensions'] = df['filepath'].apply(get_size)
+    df_filter = df.query('dimensions > 60')
+    df_filter['data'] = df_filter['filepath'].apply(structuring) # Structure the data
+    data = pd.DataFrame(df_filter['data'].tolist()) # Convert to DataFrame
+    data.columns = [f"pixel_{i}" for i in data.columns] # Rename columns to pixel_0, pixel_1, etc.
+    data = data / 255.0  # Normalize pixel values
+    data['gender'] = df_filter['gender'].values # Add gender column
+    data['identity'] = df_filter['identity'].values # Add identity column
+    data.dropna(inplace=True)  # Drop rows with None values
 
-print(f"Total images after filtering: {len(df_filter)}")
-print(f"Total valid structured images: {len(data)}")
-# Save data
-pickle.dump(data, open('./data/data_images_100_100.pickle', mode='wb'))
+    print(f"Total images after filtering: {len(df_filter)}") 
+    print(f"Total images after structuring: {len(data)}")
+    with open(OUTPUT_PATH, 'wb') as f: # Save the data to a pickle file
+        pickle.dump(data, f)
+
+if __name__ == "__main__": # Run the main function
+    main()
+    print(f"Data saved to {OUTPUT_PATH}")
 
 
 
