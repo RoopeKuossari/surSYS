@@ -9,3 +9,4 @@ src/data/images/crop/male/known
 eigen_face_test.ipynb
 image_crop_test.ipynb
 pyvenv.cfg
+__pycache__

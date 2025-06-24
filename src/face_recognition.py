@@ -1,18 +1,27 @@
-import numpy as np
-import sklearn
+from pathlib import Path
 import pickle
 import cv2
+import numpy as np
 
-haar = cv2.CascadeClassifier('./model/haarcascade_frontalface_default.xml') # Load Haar Cascade for face detection
-genderModel_svm = pickle.load(open('./model/svm_gender.pickle', mode='rb'))  # Load gender SVM model
-identityModel_svm = pickle.load(open('./model/svm_identity.pickle', mode='rb'))  # Load identity SVM model
-pca_models = pickle.load(open('./model/pca_dict.pickle', mode='rb'))  # Load PCA model
+CASCADE_PATH = Path('./src/model/haarcascade_frontalface_default.xml')  # Path to Haar Cascade model
+GENDER_MODEL_PATH = Path('./src/model/svm_gender.pickle')  # Path to gender SVM model
+IDENTITY_MODEL_PATH = Path('./src/model/svm_identity.pickle')  # Path to identity SVM model
+PCA_MODEL_PATH = Path('./src/model/pca_dict.pickle')  # Path to PCA model
+
+# Load Haar Cascade model for face detection
+haar = cv2.CascadeClassifier(str(CASCADE_PATH))  # Load Haar Cascade model
+with open(GENDER_MODEL_PATH, 'rb') as f:  # Load gender SVM model
+    genderModel_svm = pickle.load(f)
+with open(IDENTITY_MODEL_PATH, 'rb') as f:  # Load identity SVM model
+    identityModel_svm = pickle.load(f)
+with open(PCA_MODEL_PATH, 'rb') as f:  # Load PCA model
+    pca_models = pickle.load(f)
 
 model_pca = pca_models['pca']  # Extract PCA model
 mean_face = pca_models['mean_face']  # Extract mean face
 
-def faceRecognitionPipeline(filename, path = True):
-    img = cv2.imread(filename) if path else filename  # Read image from file or use provided image
+def faceRecognitionPipeline(filename, path: bool = True):
+    img = cv2.imread(str(filename)) if path else filename  # Read image from file or use provided image
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # Convert image to grayscale
     faces = haar.detectMultiScale(gray, 1.5, 3)  # Detect faces in the image
     predictions = []  # Initialize list to store predictions
@@ -36,14 +45,13 @@ def faceRecognitionPipeline(filename, path = True):
         if pred_identity.lower() == 'unknown':
             text = f"Unknown ({pred_gender}): {int(gender_proba * 100)}%"
         else:
-            text = f"{pred_identity} ({pred_gender}): {int(max(identity_proba, gender_proba)* 100)}%"
+            text = f"{pred_identity} ({pred_gender}): {int(max(identity_proba, gender_proba) * 100)}%"
 
         # Generate report
-        text = f"{pred_identity} ({pred_gender}): {int(max(identity_proba, gender_proba) * 100)}%"
         print(text)
 
         # Bounding box around the face by gender
-        color = (255,0,255) if pred_gender == 'female' else (255, 255, 0)
+        color = (255, 0, 255) if pred_gender == 'female' else (255, 255, 0)
         cv2.rectangle(img, (x, y), (x + w, y + h), color, 2)
         cv2.rectangle(img, (x, y - 40), (x + w, y), color, -1)
         cv2.putText(img, text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
