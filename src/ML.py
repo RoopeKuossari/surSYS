@@ -7,6 +7,7 @@ from sklearn import metrics
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import label_binarize
 from sklearn.svm import SVC
+from sklearn.utils import resample
 
 # Load the PCA transformed data and labels
 data = np.load('./data/pca_data_50_target.npz', allow_pickle=True)
@@ -45,6 +46,21 @@ def train_model(X: np.ndarray, y: np.ndarray, label_name: str) -> Tuple[SVC, np.
 
     return best_model, x_test, y_test
 
+def balance_classes(X, y):
+    # Combine X and y for easier resampling
+    data = np.hstack((X, y.reshape(-1, 1)))
+    df = pd.DataFrame(data)
+    class_counts = df.iloc[:, -1].value_counts()
+    min_count = class_counts.min()
+    balanced = []
+    for cls in class_counts.index:
+        cls_samples = df[df.iloc[:, -1] == cls]
+        balanced.append(resample(cls_samples, replace=False, n_samples=min_count, random_state=42))
+    balanced_df = pd.concat(balanced)
+    X_bal = balanced_df.iloc[:, :-1].values
+    y_bal = balanced_df.iloc[:, -1].values
+    return X_bal, y_bal
+
 # Function to evaluate the trained model
 def evaluate_model(model: SVC, x_test: np.ndarray, y_test: np.ndarray, label_name: str) -> None:
     y_pred = model.predict(x_test)
@@ -70,7 +86,8 @@ def main() -> None:
     model_gender, x_test_gender, y_test_gender = train_model(X, y_gender, "gender")
     evaluate_model(model_gender, x_test_gender, y_test_gender, label_name="gender")
 
-    model_identity, x_test_identity, y_test_identity = train_model(X, y_identity, "identity")
+    X_bal, y_identity_bal = balance_classes(X, y_identity)
+    model_identity, x_test_identity, y_test_identity = train_model(X_bal, y_identity_bal, "identity")
     evaluate_model(model_identity, x_test_identity, y_test_identity, label_name="identity")
 
 
