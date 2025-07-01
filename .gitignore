@@ -9,3 +9,5 @@ image_crop_test.ipynb
 pyvenv.cfg
 __pycache__
 pre_EDA_test.ipynb
+src/data/images/crop/female/known
+src/data/images/crop/male/known

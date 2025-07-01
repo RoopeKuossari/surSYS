@@ -2,6 +2,7 @@ from pathlib import Path
 import pickle
 import cv2
 import numpy as np
+import pandas as pd
 
 CASCADE_PATH = Path('./src/model/haarcascade_frontalface_default.xml')  # Path to Haar Cascade model
 GENDER_MODEL_PATH = Path('./src/model/svm_gender.pickle')  # Path to gender SVM model
@@ -20,10 +21,18 @@ with open(PCA_MODEL_PATH, 'rb') as f:  # Load PCA model
 model_pca = pca_models['pca']  # Extract PCA model
 mean_face = pca_models['mean_face']  # Extract mean face
 
+# Identity to gender mapping
+data = np.load('./src/data/pca_data_50_target.npz', allow_pickle=True)
+identities = data['identity']
+genders = data['gender']
+
+identity_to_gender = pd.DataFrame({'identity': identities, 'gender': genders}).drop_duplicates(
+    'identity').set_index('identity')['gender'].to_dict()
+
 def faceRecognitionPipeline(filename, path: bool = True):
     img = cv2.imread(str(filename)) if path else filename  # Read image from file or use provided image
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # Convert image to grayscale
-    faces = haar.detectMultiScale(gray, 1.5, 3)  # Detect faces in the image
+    faces = haar.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60,60))  # Detect faces in the image
     predictions = []  # Initialize list to store predictions
     for (x, y, w, h) in faces:  # Iterate over detected faces
         roi = gray[y:y + h, x:x + w]  # Extract region of interest (face)
@@ -36,16 +45,24 @@ def faceRecognitionPipeline(filename, path: bool = True):
         roi_mean = roi_reshape - mean_face  # Center the face image by subtracting the mean face
         eigen_image = model_pca.transform(roi_mean)  # Apply PCA transformation
         eig_img = model_pca.inverse_transform(eigen_image) # For visualization purposes
-        pred_gender = genderModel_svm.predict(eigen_image)[0]  # Predict
-        gender_proba = genderModel_svm.predict_proba(eigen_image).max() # Get probability
+        
         pred_identity = identityModel_svm.predict(eigen_image)[0]  # Predict identity
         identity_proba = identityModel_svm.predict_proba(eigen_image).max() # Get probability
-        if identity_proba < 0.6:
+       
+        
+        
+        if identity_proba < 0.6 or pred_identity.lower() == 'unknown':
             pred_identity = 'unknown'
-        if pred_identity.lower() == 'unknown':
-            text = f"Unknown ({pred_gender}): {int(gender_proba * 100)}%"
+            pred_gender = genderModel_svm.predict(eigen_image)[0]  # Predict
+            gender_proba = genderModel_svm.predict_proba(eigen_image).max() # Get probability
         else:
-            text = f"{pred_identity} ({pred_gender}): {int(max(identity_proba, gender_proba) * 100)}%"
+            pred_gender = identity_to_gender.get(pred_identity, 'unknown')
+            gender_proba = identity_proba
+
+        if pred_identity == 'unknown':
+            text = f'Unknown ({pred_gender}): {int(gender_proba * 100)}%'
+        else:
+            text = f'{pred_identity} ({pred_gender}): {int(max(identity_proba, gender_proba) * 100)}%'
 
         # Generate report
         print(text)

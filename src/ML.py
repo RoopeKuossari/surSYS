@@ -1,6 +1,6 @@
+from pathlib import Path
 import pickle
 from typing import Tuple
-import numpy as np
 import numpy as np
 import pandas as pd
 from sklearn import metrics
@@ -9,8 +9,14 @@ from sklearn.preprocessing import label_binarize
 from sklearn.svm import SVC
 from sklearn.utils import resample
 
+
+# Paths
+DATA_PATH = Path('./data/pca_data_50_target.npz')
+MODEL_DIR = Path('./model')
+MODEL_DIR.mkdir(exist_ok=True)
+
 # Load the PCA transformed data and labels
-data = np.load('./data/pca_data_50_target.npz', allow_pickle=True)
+data = np.load(DATA_PATH, allow_pickle=True)
 X = data['X']
 y_gender = data['gender']
 y_identity = data['identity']
@@ -30,7 +36,7 @@ def train_model(X: np.ndarray, y: np.ndarray, label_name: str) -> Tuple[SVC, np.
     x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
     # Train the SVM model with hyperparameter tuning
     model = SVC(probability=True)
-    grid = GridSearchCV(model, param_grid, scoring='accuracy', cv=3, verbose=1)
+    grid = GridSearchCV(model, param_grid, scoring='accuracy', cv=3, n_jobs=-1, verbose=1)
     grid.fit(x_train, y_train)
 
     # Evaluate the model
@@ -41,22 +47,25 @@ def train_model(X: np.ndarray, y: np.ndarray, label_name: str) -> Tuple[SVC, np.
     print(f"Test accuracy for {label_name}: {accuracy:.4f}")
 
     # Save the best model
-    with open(f'./model/svm_{label_name}.pickle', 'wb') as f:
+    model_path = MODEL_DIR / f'svm_{label_name}.pickle'
+    with open(model_path, 'wb') as f:
         pickle.dump(best_model, f)
 
     return best_model, x_test, y_test
 
-def balance_classes(X, y):
+def balance_classes(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     # Combine X and y for easier resampling
     data = np.hstack((X, y.reshape(-1, 1)))
     df = pd.DataFrame(data)
     class_counts = df.iloc[:, -1].value_counts()
     min_count = class_counts.min()
     balanced = []
+
     for cls in class_counts.index:
         cls_samples = df[df.iloc[:, -1] == cls]
         balanced.append(resample(cls_samples, replace=False, n_samples=min_count, random_state=42))
-    balanced_df = pd.concat(balanced)
+
+    balanced_df = pd.concat(balanced).sample(frac=1, random_state=42).reset_index(drop=True)
     X_bal = balanced_df.iloc[:, :-1].values
     y_bal = balanced_df.iloc[:, -1].values
     return X_bal, y_bal
@@ -70,16 +79,19 @@ def evaluate_model(model: SVC, x_test: np.ndarray, y_test: np.ndarray, label_nam
     print("Classification Report:\n", pd.DataFrame(cr).T)
     kappa = metrics.cohen_kappa_score(y_test, y_pred) # Calculate Cohen's Kappa score
     print(f"Kappa score:", kappa)
+    
     unique_classes = np.unique(y_test) # Get unique classes in the test set
-    if len(unique_classes) > 2: # If more than two classes, calculate AUC for each class
-        auc = metrics.roc_auc_score(np.where(y_test == unique_classes[1], 1, 0),
-                                  np.where(y_pred == unique_classes[1], 1, 0))
-        print(f"AUC score:", auc)
-    else: # If only two classes, calculate macro AUC
-        y_test_bin = label_binarize(y_test, classes=unique_classes)
-        y_pred_bin = label_binarize(y_pred, classes=unique_classes)
-        auc = metrics.roc_auc_score(y_test_bin, y_pred_bin, average='macro', multi_class='ovr')
-        print(f"AUC score (macro):", auc)
+    y_test_bin = label_binarize(y_test, classes=unique_classes)
+
+    try:
+        y_score = model.decision_function(x_test)
+        if len(unique_classes) == 2:
+            auc = metrics.roc_auc_score(y_test_bin, y_score)
+        else:
+            auc = metrics.roc_auc_score(y_test_bin, y_score, average='macro', multi_class='ovr')
+        print(f'AUC score: {auc:.4f}')
+    except Exception as e:
+        print(f'AUC score could not be calculated: {e}')
 
 def main() -> None:
     # Train and evaluate the models

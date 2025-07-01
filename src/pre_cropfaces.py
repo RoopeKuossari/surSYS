@@ -18,7 +18,7 @@ def process_directory(src_root: Path, dest_root: Path) -> None:
                 try:
                     img = cv2.imread(str(src_path))
                     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                    faces_list = FACE_CASCADE.detectMultiScale(gray, 1.5, 5)
+                    faces_list = FACE_CASCADE.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60,60))
                     for idx, (x, y, w, h) in enumerate(faces_list):
                         roi = img[y:y + h, x:x + w]
                         if len(faces_list) > 1:
