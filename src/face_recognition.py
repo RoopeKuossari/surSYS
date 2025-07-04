@@ -28,8 +28,12 @@ mean_face = pca_models['mean_face']  # Extract mean face
 data = np.load('./src/data/pca_data_50_target.npz', allow_pickle=True)
 identities = data['identity']
 genders = data['gender']
-identity_to_gender = pd.DataFrame({'identity': identities, 'gender': genders}).drop_duplicates(
-    'identity').set_index('identity')['gender'].to_dict()
+identity_to_gender = (
+    pd.DataFrame({'identity': identities, 'gender': genders}).
+    groupby('identity')['gender'].
+    agg(lambda s: s.value_counts().idxmax()).
+    to_dict()
+)
 
 class FaceTrack:
     def __init__(self, max_distance=50):
@@ -49,7 +53,7 @@ class FaceTrack:
     
     def update(self, x, y, identity):
         now = time.time()
-        face_id = self._find_closest_face(x,y)
+        face_id = self._find_closest_face(x, y)
 
         if face_id is None:
             face_id = str(uuid.uuid4())
@@ -60,7 +64,7 @@ class FaceTrack:
                 'start_time': now,
                 'last_seen': now,
                 'fixed_identity': None,
-                'position': (x,y)
+                'position': (x, y)
             }
 
         track = self.tracked_faces[face_id]
@@ -76,7 +80,11 @@ class FaceTrack:
     
     def cleanup(self, timeout=1.0):
         now = time.time()
-        to_delete = [fid for fid, val in self.tracked_faces.items() if now - val['last_seen'] > timeout]
+        to_delete = [
+            fid
+            for fid, val in self.tracked_faces.items()
+            if now - val['last_seen'] > timeout
+        ]
         for fid in to_delete:
             del self.tracked_faces[fid]
 
@@ -130,17 +138,22 @@ def faceRecognitionPipeline(filename, path: bool = True):
         eigen_image = model_pca.transform(roi_mean)  # Apply PCA transformation
         eig_img = model_pca.inverse_transform(eigen_image) # For visualization purposes
         
-        pred_identity = identityModel_svm.predict(eigen_image)[0]  # Predict identity
-        identity_proba = identityModel_svm.predict_proba(eigen_image).max() # Get probability
+        pred_gender = genderModel_svm.predict(eigen_image)[0]
+        gender_proba = genderModel_svm.predict_proba(eigen_image).max()
+
+        pred_identity = identityModel_svm.predict(eigen_image)[0]
+        identity_proba = identityModel_svm.predict_proba(eigen_image).max()
+
+        expected_gender = identity_to_gender.get(pred_identity)
        
-        
-        
-        if identity_proba < 0.6 or pred_identity.lower() == 'unknown':
+        if (
+            identity_proba < 0.9
+            or pred_identity.lower() == 'unknown'
+            or expected_gender != pred_gender
+        ):
             pred_identity = 'unknown'
-            pred_gender = genderModel_svm.predict(eigen_image)[0]  # Predict
-            gender_proba = genderModel_svm.predict_proba(eigen_image).max() # Get probability
         else:
-            pred_gender = identity_to_gender.get(pred_identity, 'unknown')
+            pred_gender = expected_gender
             gender_proba = identity_proba
 
         stable_identity = face_tracker.update(x + w // 2, y + h // 2, pred_identity)
